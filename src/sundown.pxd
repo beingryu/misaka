@@ -68,6 +68,7 @@ cdef extern from 'sundown/markdown.h':
         int (*triple_emphasis)(buf *ob, buf *text, void *opaque)
         int (*strikethrough)(buf *ob, buf *text, void *opaque)
         int (*superscript)(buf *ob, buf *text, void *opaque)
+        int (*subscript)(buf *ob, buf *text, void *opaque)
 
         # Low level callbacks - NULL copies input directly into the output
         void (*entity)(buf *ob, buf *entity, void *opaque)

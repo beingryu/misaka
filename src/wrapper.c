@@ -234,6 +234,13 @@ rndr_superscript(struct buf *ob, const struct buf *text, void *opaque)
 }
 
 
+static int
+rndr_subscript(struct buf *ob, const struct buf *text, void *opaque)
+{
+    PROCESS_SPAN("subscript", PY_STR(text), NULL);
+}
+
+
 /* Direct writes
    ------------- */
 
@@ -290,6 +297,7 @@ struct sd_callbacks callback_funcs = {
     rndr_triple_emphasis,
     rndr_strikethrough,
     rndr_superscript,
+    rndr_subscript,
 
     rndr_entity,
     rndr_normal_text,
@@ -323,6 +331,7 @@ const char *method_names[] = {
     "triple_emphasis",
     "strikethrough",
     "superscript",
+    "subscript",
 
     "entity",
     "normal_text",

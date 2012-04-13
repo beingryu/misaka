@@ -74,6 +74,8 @@ static size_t char_autolink_email(struct buf *ob, struct sd_markdown *rndr, uint
 static size_t char_autolink_www(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_link(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_superscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
+static size_t char_subscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
+
 
 enum markdown_char_t {
 	MD_CHAR_NONE = 0,
@@ -88,6 +90,7 @@ enum markdown_char_t {
 	MD_CHAR_AUTOLINK_EMAIL,
 	MD_CHAR_AUTOLINK_WWW,
 	MD_CHAR_SUPERSCRIPT,
+	MD_CHAR_SUBSCRIPT,
 };
 
 static char_trigger markdown_char_ptrs[] = {
@@ -103,6 +106,7 @@ static char_trigger markdown_char_ptrs[] = {
 	&char_autolink_email,
 	&char_autolink_www,
 	&char_superscript,
+	&char_subscript,
 };
 
 /* render • structure containing one particular render */
@@ -1106,6 +1110,45 @@ char_superscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t
 	return (sup_start == 2) ? sup_len + 1 : sup_len;
 }
 
+// i was too lazy to refactor these code........ sorry :$
+static size_t
+char_subscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size)
+{
+	size_t sub_start, sub_len;
+	struct buf *sup;
+
+	if (!rndr->cb.subscript)
+		return 0;
+
+	if (size < 2)
+		return 0;
+
+	if (data[1] == '(') {
+		sub_start = sub_len = 2;
+
+		while (sub_len < size && data[sub_len] != ')' && data[sub_len - 1] != '\\')
+			sub_len++;
+
+		if (sub_len == size)
+			return 0;
+	} else {
+		sub_start = sub_len = 1;
+
+		while (sub_len < size && !_isspace(data[sub_len]))
+			sub_len++;
+	}
+
+	if (sub_len - sub_start == 0)
+		return (sub_start == 2) ? 3 : 0;
+
+	sup = rndr_newbuf(rndr, BUFFER_SPAN);
+	parse_inline(sup, rndr, data + sub_start, sub_len - sub_start);
+	rndr->cb.subscript(ob, sup, rndr->opaque);
+	rndr_popbuf(rndr, BUFFER_SPAN);
+
+	return (sub_start == 2) ? sub_len + 1 : sub_len;
+}
+
 /*********************************
  * BLOCK-LEVEL PARSING FUNCTIONS *
  *********************************/
@@ -1154,9 +1197,10 @@ is_hrule(uint8_t *data, size_t size)
 	return n >= 3;
 }
 
-/* check if a line is a code fence; return its size if it is */
+/* check if a line begins with a code fence; return the
+ * width of the code fence */
 static size_t
-is_codefence(uint8_t *data, size_t size, struct buf *syntax)
+prefix_codefence(uint8_t *data, size_t size)
 {
 	size_t i = 0, n = 0;
 	uint8_t c;
@@ -1181,42 +1225,53 @@ is_codefence(uint8_t *data, size_t size, struct buf *syntax)
 	if (n < 3)
 		return 0;
 
-	if (syntax != NULL) {
-		size_t syn = 0;
+	return i;
+}
 
-		while (i < size && data[i] == ' ')
-			i++;
+/* check if a line is a code fence; return its size if it is */
+static size_t
+is_codefence(uint8_t *data, size_t size, struct buf *syntax)
+{
+	size_t i = 0, syn = 0;
 
+	i = prefix_codefence(data, size);
+	if (i == 0)
+		return 0;
+
+	while (i < size && data[i] == ' ')
+		i++;
+
+	if (syntax)
 		syntax->data = data + i;
 
-		if (i < size && data[i] == '{') {
-			i++; syntax->data++;
+	if (i < size && data[i] == '{') {
+		i++; syntax->data++;
 
-			while (i < size && data[i] != '}' && data[i] != '\n') {
-				syn++; i++;
-			}
-
-			if (i == size || data[i] != '}')
-				return 0;
-
-			/* strip all whitespace at the beginning and the end
-			 * of the {} block */
-			while (syn > 0 && _isspace(syntax->data[0])) {
-				syntax->data++; syn--;
-			}
-
-			while (syn > 0 && _isspace(syntax->data[syn - 1]))
-				syn--;
-
-			i++;
-		} else {
-			while (i < size && !_isspace(data[i])) {
-				syn++; i++;
-			}
+		while (i < size && data[i] != '}' && data[i] != '\n') {
+			syn++; i++;
 		}
 
-		syntax->size = syn;
+		if (i == size || data[i] != '}')
+			return 0;
+
+		/* strip all whitespace at the beginning and the end
+		 * of the {} block */
+		while (syn > 0 && _isspace(syntax->data[0])) {
+			syntax->data++; syn--;
+		}
+
+		while (syn > 0 && _isspace(syntax->data[syn - 1]))
+			syn--;
+
+		i++;
+	} else {
+		while (i < size && !_isspace(data[i])) {
+			syn++; i++;
+		}
 	}
+
+	if (syntax)
+		syntax->size = syn;
 
 	while (i < size && data[i] != '\n') {
 		if (!_isspace(data[i]))
@@ -1426,18 +1481,42 @@ parse_paragraph(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t 
 		if ((level = is_headerline(data + i, size - i)) != 0)
 			break;
 
-		if (rndr->ext_flags & MKDEXT_LAX_HTML_BLOCKS) {
-			if (data[i] == '<' && rndr->cb.blockhtml && parse_htmlblock(ob, rndr, data + i, size - i, 0)) {
-				end = i;
-				break;
-			}
-		}
-
 		if (is_atxheader(rndr, data + i, size - i) ||
 			is_hrule(data + i, size - i) ||
 			prefix_quote(data + i, size - i)) {
 			end = i;
 			break;
+		}
+
+		/*
+		 * Early termination of a paragraph with the same logic
+		 * as Markdown 1.0.0. If this logic is applied, the
+		 * Markdown 1.0.3 test suite won't pass cleanly
+		 *
+		 * :: If the first character in a new line is not a letter,
+		 * let's check to see if there's some kind of block starting
+		 * here
+		 */
+		if ((rndr->ext_flags & MKDEXT_LAX_SPACING) && !isalnum(data[i])) {
+			if (prefix_oli(data + i, size - i) ||
+				prefix_uli(data + i, size - i)) {
+				end = i;
+				break;
+			}
+
+			/* see if an html block starts here */
+			if (data[i] == '<' && rndr->cb.blockhtml &&
+				parse_htmlblock(ob, rndr, data + i, size - i, 0)) {
+				end = i;
+				break;
+			}
+
+			/* see if a code fence starts here */
+			if ((rndr->ext_flags & MKDEXT_FENCED_CODE) != 0 &&
+				is_codefence(data + i, size - i, NULL) != 0) {
+				end = i;
+				break;
+			}
 		}
 
 		i = end;
@@ -1509,9 +1588,10 @@ parse_fencedcode(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t
 
 	while (beg < size) {
 		size_t fence_end;
+		struct buf fence_trail = { 0, 0, 0, 0 };
 
-		fence_end = is_codefence(data + beg, size - beg, NULL);
-		if (fence_end != 0) {
+		fence_end = is_codefence(data + beg, size - beg, &fence_trail);
+		if (fence_end != 0 && fence_trail.size == 0) {
 			beg += fence_end;
 			break;
 		}
@@ -1586,8 +1666,7 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 {
 	struct buf *work = 0, *inter = 0;
 	size_t beg = 0, end, pre, sublist = 0, orgpre = 0, i;
-	int in_empty = 0, has_inside_empty = 0;
-	size_t has_next_uli, has_next_oli;
+	int in_empty = 0, has_inside_empty = 0, in_fence = 0;
 
 	/* keeping track of the first indentation prefix */
 	while (orgpre < 3 && orgpre < size && data[orgpre] == ' ')
@@ -1615,6 +1694,8 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 
 	/* process the following lines */
 	while (beg < size) {
+		size_t has_next_uli = 0, has_next_oli = 0;
+
 		end++;
 
 		while (end < size && data[end - 1] != '\n')
@@ -1634,8 +1715,17 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 
 		pre = i;
 
-		has_next_uli = prefix_uli(data + beg + i, end - beg - i);
-		has_next_oli = prefix_oli(data + beg + i, end - beg - i);
+		if (rndr->ext_flags & MKDEXT_FENCED_CODE) {
+			if (is_codefence(data + beg + i, end - beg - i, NULL) != 0)
+				in_fence = !in_fence;
+		}
+
+		/* Only check for new list items if we are **not** inside
+		 * a fenced code block */
+		if (!in_fence) {
+			has_next_uli = prefix_uli(data + beg + i, end - beg - i);
+			has_next_oli = prefix_oli(data + beg + i, end - beg - i);
+		}
 
 		/* checking for ul/ol switch */
 		if (in_empty && (
@@ -1656,10 +1746,12 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 			if (!sublist)
 				sublist = work->size;
 		}
-		/* joining only indented stuff after empty lines */
-		else if (in_empty && i < 4) {
-				*flags |= MKD_LI_END;
-				break;
+		/* joining only indented stuff after empty lines;
+		 * note that now we only require 1 space of indentation
+		 * to continue a list */
+		else if (in_empty && pre == 0) {
+			*flags |= MKD_LI_END;
+			break;
 		}
 		else if (in_empty) {
 			bufputc(work, '\n');
@@ -1790,13 +1882,8 @@ htmlblock_end_tag(
 	i += w;
 	w = 0;
 
-	if (rndr->ext_flags & MKDEXT_LAX_HTML_BLOCKS) {
-		if (i < size)
-			w = is_empty(data + i, size - i);
-	} else  {
-		if (i < size && (w = is_empty(data + i, size - i)) == 0)
-			return 0; /* non-blank line after tag line */
-	}
+	if (i < size)
+		w = is_empty(data + i, size - i);
 
 	return i + w;
 }
@@ -2366,7 +2453,6 @@ sd_markdown_new(
 
 	if (md->cb.emphasis || md->cb.double_emphasis || md->cb.triple_emphasis) {
 		md->active_char['*'] = MD_CHAR_EMPHASIS;
-		md->active_char['_'] = MD_CHAR_EMPHASIS;
 		if (extensions & MKDEXT_STRIKETHROUGH)
 			md->active_char['~'] = MD_CHAR_EMPHASIS;
 	}
@@ -2392,6 +2478,8 @@ sd_markdown_new(
 
 	if (extensions & MKDEXT_SUPERSCRIPT)
 		md->active_char['^'] = MD_CHAR_SUPERSCRIPT;
+	if (extensions & MKDEXT_SUBSCRIPT)
+		md->active_char['_'] = MD_CHAR_SUBSCRIPT;
 
 	/* Extension data */
 	md->ext_flags = extensions;
@@ -2497,9 +2585,9 @@ sd_markdown_free(struct sd_markdown *md)
 void
 sd_version(int *ver_major, int *ver_minor, int *ver_revision)
 {
-	*ver_major = UPSKIRT_VER_MAJOR;
-	*ver_minor = UPSKIRT_VER_MINOR;
-	*ver_revision = UPSKIRT_VER_REVISION;
+	*ver_major = SUNDOWN_VER_MAJOR;
+	*ver_minor = SUNDOWN_VER_MINOR;
+	*ver_revision = SUNDOWN_VER_REVISION;
 }
 
 /* vim: set filetype=c: */

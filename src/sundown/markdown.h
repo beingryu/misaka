@@ -22,10 +22,14 @@
 #include "buffer.h"
 #include "autolink.h"
 
-#define UPSKIRT_VERSION "1.15.2"
-#define UPSKIRT_VER_MAJOR 1
-#define UPSKIRT_VER_MINOR 15
-#define UPSKIRT_VER_REVISION 2
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define SUNDOWN_VERSION "1.16.0"
+#define SUNDOWN_VER_MAJOR 1
+#define SUNDOWN_VER_MINOR 16
+#define SUNDOWN_VER_REVISION 0
 
 /********************
  * TYPE DEFINITIONS *
@@ -52,9 +56,10 @@ enum mkd_extensions {
 	MKDEXT_FENCED_CODE = (1 << 2),
 	MKDEXT_AUTOLINK = (1 << 3),
 	MKDEXT_STRIKETHROUGH = (1 << 4),
-	MKDEXT_LAX_HTML_BLOCKS = (1 << 5),
 	MKDEXT_SPACE_HEADERS = (1 << 6),
 	MKDEXT_SUPERSCRIPT = (1 << 7),
+	MKDEXT_LAX_SPACING = (1 << 8),
+	MKDEXT_SUBSCRIPT = (1 << 9),
 };
 
 /* sd_callbacks - functions for rendering parsed data */
@@ -85,6 +90,7 @@ struct sd_callbacks {
 	int (*triple_emphasis)(struct buf *ob, const struct buf *text, void *opaque);
 	int (*strikethrough)(struct buf *ob, const struct buf *text, void *opaque);
 	int (*superscript)(struct buf *ob, const struct buf *text, void *opaque);
+	int (*subscript)(struct buf *ob, const struct buf *text, void *opaque);
 
 	/* low level callbacks - NULL copies input directly into the output */
 	void (*entity)(struct buf *ob, const struct buf *entity, void *opaque);
@@ -124,6 +130,10 @@ sd_markdown_free(struct sd_markdown *md);
 
 extern void
 sd_version(int *major, int *minor, int *revision);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
