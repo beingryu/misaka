@@ -1,8 +1,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sundown/markdown.h"
-#include "sundown/buffer.h"
+#include "markdown.h"
+#include "buffer.h"
 
 #include "wrapper.h"
 

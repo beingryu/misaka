@@ -1,7 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sundown/html.h"
+#include "html.h"
 
 
 struct renderopt {

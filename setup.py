@@ -93,7 +93,7 @@ setup(
         'src/sundown/html/houdini_href_e.c',
         'src/sundown/html/houdini_html_e.c',
         'src/sundown/src/autolink.c'
-    ])],
+    ], include_dirs=['src/sundown/src', 'src/sundown/html'])],
     classifiers = [
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

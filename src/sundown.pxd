@@ -1,7 +1,7 @@
 from libc.stdint cimport uint8_t
 
 
-cdef extern from 'sundown/buffer.h':
+cdef extern from 'sundown/src/buffer.h':
     struct buf:
         uint8_t *data
         size_t size
@@ -15,7 +15,7 @@ cdef extern from 'sundown/buffer.h':
     void bufputs(buf *, char *)
 
 
-cdef extern from 'sundown/html.h':
+cdef extern from 'sundown/html/html.h':
     struct _toc_data_st:
         int header_count
         int current_level
@@ -38,7 +38,7 @@ cdef extern from 'sundown/html.h':
         size_t size)
 
 
-cdef extern from 'sundown/markdown.h':
+cdef extern from 'sundown/src/markdown.h':
     enum mkd_autolink:
         pass
 
