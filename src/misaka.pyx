@@ -4,7 +4,8 @@ cimport wrapper
 from libc.stdint cimport uint8_t
 
 
-__version__ = '1.0.2'
+__version__ = '1.0.3'
+
 
 # Markdown extensions
 EXT_NO_INTRA_EMPHASIS = (1 << 0)
@@ -12,9 +13,9 @@ EXT_TABLES = (1 << 1)
 EXT_FENCED_CODE = (1 << 2)
 EXT_AUTOLINK = (1 << 3)
 EXT_STRIKETHROUGH = (1 << 4)
-EXT_LAX_HTML_BLOCKS = (1 << 5)
 EXT_SPACE_HEADERS = (1 << 6)
 EXT_SUPERSCRIPT = (1 << 7)
+EXT_LAX_SPACING = (1 << 8)
 EXT_SUBSCRIPT = (1 << 9)
 
 # HTML Render flags
@@ -127,7 +128,7 @@ cdef class BaseRenderer:
     #: Read-only render flags
     cdef readonly int flags
 
-    def __cinit__(self, int flags=0):
+    def __init__(self, int flags=0):
         self.options.self = <void *> self
         self.flags = flags
         self.setup()
@@ -218,7 +219,7 @@ cdef class Markdown:
         if hasattr(text, 'encode'):
             py_string = text.encode('UTF-8', 'strict')
         else:
-            py_string = text
+            py_string = text  # If it's a byte string it's assumed it's UTF-8
         cdef char *c_string = py_string
 
         # Buffers

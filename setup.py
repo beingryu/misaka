@@ -1,5 +1,4 @@
 import os
-import sys
 import glob
 import shutil
 import os.path
@@ -44,7 +43,10 @@ class CythonCommand(BaseCommand):
 
 
 class VendorCommand(BaseCommand):
-    description = 'update Sundown files. Use `git submodule foreach git pull` to the most recent files'
+    description = 'update Sundown files. Use `git submodule init`, '\
+        '`git submodule update` and `git submodule foreach git pull origin master`'\
+        ' to the most recent files'
+
     def run(self):
         files = []
         dest = os.path.join(dirname, 'src/sundown')
@@ -58,9 +60,15 @@ class VendorCommand(BaseCommand):
                 shutil.copy(path, dest)
 
 
+class TestCommand(BaseCommand):
+    description = 'run unit tests'
+    def run(self):
+        os.system('python tests/misaka_test.py')
+
+
 setup(
     name='misaka',
-    version='1.0.2',
+    version='1.0.3',
     description='The Python binding for Sundown, a markdown parsing library.',
     author='Frank Smit',
     author_email='frank@61924.nl',
@@ -71,19 +79,20 @@ setup(
     cmdclass={
         'clean': CleanCommand,
         'compile_cython': CythonCommand,
-        'update_vendor': VendorCommand
+        'update_vendor': VendorCommand,
+        'test': TestCommand
     },
     ext_modules=[Extension('misaka', [
         'src/misaka.c',
         'src/wrapper.c',
-        'src/sundown/stack.c',
-        'src/sundown/buffer.c',
-        'src/sundown/markdown.c',
-        'src/sundown/html.c',
-        'src/sundown/html_smartypants.c',
-        'src/sundown/houdini_href_e.c',
-        'src/sundown/houdini_html_e.c',
-        'src/sundown/autolink.c'
+        'src/sundown/src/stack.c',
+        'src/sundown/src/buffer.c',
+        'src/sundown/src/markdown.c',
+        'src/sundown/html/html.c',
+        'src/sundown/html/html_smartypants.c',
+        'src/sundown/html/houdini_href_e.c',
+        'src/sundown/html/houdini_html_e.c',
+        'src/sundown/src/autolink.c'
     ])],
     classifiers = [
         'Development Status :: 4 - Beta',
