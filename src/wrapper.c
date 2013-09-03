@@ -60,6 +60,11 @@
 /* Block level
    ----------- */
 
+static void
+rndr_blockmath(struct buf *ob, const struct buf *math, void *opaque)
+{
+    PROCESS_BLOCK("block_math", PY_STR(math), NULL);
+}
 
 static void
 rndr_blockcode(struct buf *ob, const struct buf *text, const struct buf *lang, void *opaque)
@@ -163,6 +168,12 @@ rndr_autolink(struct buf *ob, const struct buf *link, enum mkd_autolink type, vo
     PROCESS_SPAN("autolink", PY_STR(link), is_email, NULL);
 }
 
+
+static int
+rndr_mathspan(struct buf *ob, const struct buf *text, void *opaque)
+{
+    PROCESS_SPAN("mathspan", PY_STR(text), NULL);
+}
 
 static int
 rndr_codespan(struct buf *ob, const struct buf *text, void *opaque)
@@ -275,6 +286,7 @@ rndr_doc_footer(struct buf *ob, void *opaque)
 
 struct sd_callbacks callback_funcs = {
     rndr_blockcode,
+    rndr_blockmath,
     rndr_blockquote,
     rndr_raw_block,
     rndr_header,
@@ -287,6 +299,7 @@ struct sd_callbacks callback_funcs = {
     rndr_tablecell,
 
     rndr_autolink,
+    rndr_mathspan,
     rndr_codespan,
     rndr_double_emphasis,
     rndr_emphasis,
@@ -309,6 +322,7 @@ struct sd_callbacks callback_funcs = {
 
 const char *method_names[] = {
     "block_code",
+    "block_math",
     "block_quote",
     "block_html",
     "header",
@@ -321,6 +335,7 @@ const char *method_names[] = {
     "table_cell",
 
     "autolink",
+    "mathspan",
     "codespan",
     "double_emphasis",
     "emphasis",
